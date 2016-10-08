@@ -1,0 +1,7 @@
+name: 'Publicate'
+description: 'Content deploy module.'
+type: module
+core: 8.x
+package: Other
+configure: publicate.settings
+version: 8.x-1.0-alpha1

@@ -1,0 +1,14 @@
+publicate.publish:
+  path: '/publicate/PublicatePushPublish'
+  defaults:
+    _controller: 'Drupal\publicate\Controller\PublicatePushPublish::mainPage'
+  requirements:
+    _permission: 'access content'
+
+publicate.settings:
+  path: '/admin/config/publicate'
+  defaults:
+    _form: 'Drupal\publicate\Form\PublicatePushSettings'
+    _title: 'Publicate Content Push Settings'
+  requirements:
+    _permission: 'access administration pages'

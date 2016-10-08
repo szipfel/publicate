@@ -1,0 +1,54 @@
+<?php
+
+use Drupal\Core\Database\Database;
+
+function publicate_install() {
+
+  // Set the module's initial site schema.
+  drupal_set_installed_schema_version('publicate', 8000);
+
+  $config_table = array(
+    'description' => 'The table for holding endpoint configurations',
+    'fields' => array(
+      'pid'       => array('type' => 'serial', 'unsigned' => TRUE, 'not null' => TRUE),
+      'name'      => array('type' => 'varchar','length' => 128,'not null' => TRUE, 'default' => ''),
+      'url'      => array('type' => 'varchar','length' => 128,'not null' => TRUE, 'default' => ''),
+      'username'  => array('type' => 'varchar','length' => 16,'not null' => TRUE,'default' => ''),
+      'password'     => array('type' => 'varchar','length' => 16,'not null' => TRUE, 'default' => ''),
+      'status'    => array('type' => 'int', 'not null' => TRUE, 'default' => 1),
+    ),
+    'unique keys' => array(
+      'url' => array('url'),
+    ),
+    'primary key' => array('pid'),
+  );
+
+  $key_table = array(
+    'description' => 'The table for holding publication deployments',
+    'fields' => array(
+      'pdid'       => array('type' => 'serial', 'unsigned' => TRUE, 'not null' => TRUE),
+      'nid'       => array('type' => 'int', 'not null' => TRUE, 'default' => 0),
+      'last_push'      => array('type' => 'int', 'not null' => TRUE, 'default' => 0),
+      'log'    => array('type' => 'varchar', 'length' => 128, 'not null' => TRUE, 'default' => ''),
+    ),
+    'unique keys' => array(
+      'pdid' => array('pdid'),
+    ),
+    'primary key' => array('pdid'),
+  );
+
+  $schema = Database::getConnection()->schema();
+  $schema->createTable('publicate', $config_table);
+  $schema->createTable('publicate_deployments', $key_table);
+}
+
+/**
+ * Implementation of hook_uninstall().
+ */
+function sfwmd_push_uninstall() {
+  $schema = Database::getConnection()->schema();
+  $schema->dropTable('publicate');
+}
+
+
+?>

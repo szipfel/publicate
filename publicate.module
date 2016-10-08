@@ -1,0 +1,170 @@
+<?php
+/**
+ *
+ */
+
+use Drupal\publicate\Form\PublicatePushSettings;
+
+function publicate_form_alter(&$form, \Drupal\Core\Form\FormStateInterface $form_state, $form_id) {
+  $node = \Drupal::routeMatch()->getParameter('node');
+  $options = publicate_get_endpoints();
+
+  if(count($options) > 0) {
+
+    if ($node) {
+      $form['publicate']['container'] = array(
+        '#type' => 'fieldset',
+        '#title' => t('Publicate'),
+        '#weight' => 1000,
+      );
+      // load the endpoints into an array
+      $form['publicate']['container']['endpoint'] = array(
+        '#type' => 'select',
+        '#options' => $options,
+        '#title' => t('Endpoint: '),
+        '#description' => t('Set destination for content publish.'),
+        '#default_value' => NULL,
+      );
+
+      $form['publicate']['container']['actions']['publicate'] = array(
+        '#type' => 'submit',
+        '#value' => 'Publicate',
+        '#submit' => array('publicate_node_form_submit'),
+      );
+
+      $form['#validate'][] = 'publicate_node_form_validate';
+
+    }
+  }
+
+}
+
+/**
+ * @param $form
+ * @param \Drupal\Core\Form\FormStateInterface $form_state
+ * @return mixed
+ */
+function publicate_node_form_validate($form, \Drupal\Core\Form\FormStateInterface $form_state) {
+
+  if (!publicate_get_endpoint_url($form_state->getValue('endpoint'))) {
+    $form_state->setErrorByName('endpoint', t('Endpoint must be set to use publicate.'));
+  }
+  return $form;
+}
+
+/**
+ * @param $form
+ * @param \Drupal\Core\Form\FormStateInterface $form_state
+ */
+function publicate_node_form_submit($form, \Drupal\Core\Form\FormStateInterface $form_state) {
+  $node = \Drupal::routeMatch()->getParameter('node');
+  $content_type = $node->getType();
+  dpm($node);
+
+  $url = publicate_get_endpoint_url($form_state->getValue('endpoint')) . '/entity/node';
+ // $test = publicate_get_fields('page');
+  // todo: make function to create this from current node.
+  $payload = publicate_get_fields($content_type, $form_state->getValue('endpoint'));
+
+  $curl = curl_init($url);
+  $username = 'admin';
+  $password  = 'admin';
+  curl_setopt($curl, CURLOPT_HTTPHEADER, array('Content-type: application/hal+json')); // Accept JSON response
+  curl_setopt($curl, CURLOPT_POST, 1);
+  curl_setopt($curl, CURLOPT_USERPWD, "$username:$password");
+  curl_setopt($curl, CURLOPT_POSTFIELDS, $payload);
+  curl_setopt($curl, CURLOPT_HEADER, FALSE);
+  curl_setopt($curl, CURLOPT_RETURNTRANSFER, TRUE);
+  curl_setopt($curl, CURLOPT_FAILONERROR, TRUE);
+
+  $response = curl_exec($curl);
+  $http_code = curl_getinfo($curl, CURLINFO_HTTP_CODE);
+
+  // Check if login was successful
+  if ($http_code == 201) {
+ //   $return = json_decode($response);
+    drupal_set_message(t('Successfully published node ' . $form_state->getValue('title')[0]['value'] . ' to remote site ' . publicate_get_endpoint_url($form_state->getValue('endpoint'))));
+ //   if(isset($return)) {
+ //     return $return;
+ //   } else {
+ //     return TRUE;
+ //   }
+
+  } else {
+    drupal_set_message(t('Unable to send node ' . $form_state->getValue('title')[0]['value'] . ' to remote site ' . publicate_get_endpoint_url($form_state->getValue('endpoint'))), 'error');
+  }
+}
+
+/**
+ *
+ */
+function publicate_get_endpoints() {
+
+  // set default value:
+  $options[0] = t('Select Endpoint');
+  $available_endpoints = new PublicatePushSettings;
+  $endpoints = $available_endpoints->getCurrentEndpoints();
+  if(count($endpoints) > 0) {
+    foreach ($endpoints as $option) {
+      $options[$option['pid']] = $option['name'] . ' - ' . $option['url'];
+    }
+    return $options;
+  } else {
+    return;
+  }
+}
+
+/**
+ * @param $endpoint_id
+ */
+function publicate_get_endpoint_url($endpoint_id) {
+
+  $available_endpoints = new PublicatePushSettings;
+  foreach ($available_endpoints->getCurrentEndpoints() as $option) {
+    if($option['pid'] == $endpoint_id) {
+      return $option['url'];
+    }
+  }
+}
+
+function publicate_get_fields($type, $endpoint_id) {
+
+
+  $exclusions = array(
+    'nid',
+    'vid',
+    'langcode',
+    'type',
+    'uid',
+    'revision_timestamp',
+    'revision_uid',
+    'revision_log',
+    'revision_translation_affected',
+    'default_langcode',
+    'workspace',
+    '_deleted',
+    '_rev',
+    'menu_link',
+    'moderation_state',
+  );
+
+  $payload = array(
+    '_links' => array(
+      'type' => array(
+        'href' => publicate_get_endpoint_url($endpoint_id) . '/rest/type/node/' . $type,
+      ),
+    ),
+  );
+
+  $node = \Drupal::routeMatch()->getParameter('node');
+  $definitions = \Drupal::service('entity_field.manager')
+    ->getFieldDefinitions('node', $type);
+  foreach($definitions as $key => $value) {
+
+    if(!in_array($key, $exclusions)) {
+      $payload[$key] = array('value' => trim($node->get($key)->value));
+    }
+  }
+  return json_encode($payload);
+
+}
